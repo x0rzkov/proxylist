@@ -1,4 +1,4 @@
-package main
+package proxylist
 
 // Settings represents the configuration for the proxy.
 type Settings struct {

@@ -4,6 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strings"
+
+	"github.com/x0rzkov/proxylist/pkg/proxylist"
 )
 
 const service = "https://gimmeproxy.com/api/getProxy"
@@ -11,12 +14,13 @@ const service = "https://gimmeproxy.com/api/getProxy"
 var export bool
 var howmany int
 var sorting string
+var countries string
 
 func main() {
 	flag.Usage = func() {
 		fmt.Println("ProxyList")
 		fmt.Println("http://cixtor.com/")
-		fmt.Println("https://github.com/cixtor/proxylist")
+		fmt.Println("https://github.com/cixtor/proxylist/cmd/proxylist")
 		fmt.Println("https://en.wikipedia.org/wiki/Proxy_server")
 		fmt.Println(service)
 		fmt.Println()
@@ -34,18 +38,20 @@ func main() {
 
 	flag.BoolVar(&export, "e", false, "Export all data as JSON")
 	flag.IntVar(&howmany, "n", 10, "How many proxies to list")
+	flag.StringVar(&countries, "c", "US", "Country's proxy (format: ISO2, commas spearated, eg: US,UK)")
 	flag.StringVar(&sorting, "s", "speed", "Sort in descending mode")
 
 	flag.Parse()
 
-	p := NewProxy(service)
+	countriesSlice := strings.Split(countries, ",")
+	p := proxylist.NewProxy(service, countriesSlice...)
 
 	if err := p.Execute(howmany); err != nil {
 		fmt.Print(err)
 		/* return */
 	}
 
-	if p.success == 0 {
+	if p.Success == 0 {
 		return
 	}
 

@@ -1,4 +1,4 @@
-package main
+package proxylist
 
 import (
 	"encoding/json"
@@ -15,18 +15,20 @@ import (
 
 // Proxy represents the core of the library.
 type Proxy struct {
-	success int
-	service string
-	failure []error
-	entries []Settings
+	Success int
+	Service string
+	Countries []string
+	Failure []error
+	Entries []Settings
 }
 
 // NewProxy returns an instance of Proxy.
-func NewProxy(url string) *Proxy {
+func NewProxy(url string, countries ...string) *Proxy {
 	p := new(Proxy)
-	p.service = url
-	p.failure = make([]error, 0)
-	p.entries = make([]Settings, 0)
+	p.Service = url
+	p.Countries = countries
+	p.Failure = make([]error, 0)
+	p.Entries = make([]Settings, 0)
 	return p
 }
 
@@ -45,16 +47,16 @@ func (p *Proxy) Execute(n int) error {
 	for i := 0; i < n; i++ {
 		fail = <-fails
 		item = <-queue
-		p.failure = append(p.failure, fail)
-		p.entries = append(p.entries, item)
+		p.Failure = append(p.Failure, fail)
+		p.Entries = append(p.Entries, item)
 		if item.Curl != "" {
-			p.success++
+			p.Success++
 		}
 	}
 
 	var msg string
 
-	for _, err := range p.failure {
+	for _, err := range p.Failure {
 		if err != nil {
 			msg += "\xe2\x80\xa2\x20" + err.Error() + "\n"
 		}
@@ -67,11 +69,11 @@ func (p *Proxy) Execute(n int) error {
 	return errors.New(msg)
 }
 
-// Fetch queries a web API service to get one proxy.
+// Fetch queries a web API Service to get one proxy.
 func (p *Proxy) Fetch(fails chan error, queue chan Settings) {
 	client := &http.Client{Timeout: time.Second * 5}
 
-	req, err := http.NewRequest("GET", p.service, nil)
+	req, err := http.NewRequest("GET", p.Service, nil)
 
 	if err != nil {
 		fails <- err
@@ -115,9 +117,18 @@ func (p *Proxy) Fetch(fails chan error, queue chan Settings) {
 
 // Export writes the list of proxies into W in JSON format.
 func (p *Proxy) Export(w io.Writer) {
-	if err := json.NewEncoder(w).Encode(p.entries); err != nil {
+	if err := json.NewEncoder(w).Encode(p.Entries); err != nil {
 		log.Println("json.decode", err)
 	}
+}
+
+func (p *Proxy) CheckCountry(country string) bool {
+	for _, cnt := range p.Countries {
+		if cnt == country {
+			return true
+		}
+	}
+	return false
 }
 
 // Print writes the list of proxies into W in Tabular format.
@@ -126,7 +137,7 @@ func (p *Proxy) Print(w io.Writer) {
 
 	data := [][]string{}
 
-	for _, item := range p.entries {
+	for _, item := range p.Entries {
 		if item.Curl == "" {
 			continue
 		}
@@ -134,6 +145,10 @@ func (p *Proxy) Print(w io.Writer) {
 		entry = []string{}
 
 		t := time.Unix(item.TsChecked, 0)
+
+		if !p.CheckCountry(item.Country) {
+			continue
+		}
 
 		entry = append(entry, item.Country)
 		entry = append(entry, item.Curl)
@@ -209,20 +224,20 @@ func (p *Proxy) Print(w io.Writer) {
 
 // Sort re-orders the list of proxies by a column.
 func (p *Proxy) Sort(column string) {
-	for idx, item := range p.entries {
+	for idx, item := range p.Entries {
 		switch column {
 		case "port":
-			p.entries[idx].Filter = item.Port
+			p.Entries[idx].Filter = item.Port
 		case "speed":
-			p.entries[idx].Filter = fmt.Sprintf("%.2f", item.Speed*100)
+			p.Entries[idx].Filter = fmt.Sprintf("%.2f", item.Speed*100)
 		case "country":
-			p.entries[idx].Filter = item.Country
+			p.Entries[idx].Filter = item.Country
 		case "protocol":
-			p.entries[idx].Filter = item.Protocol
+			p.Entries[idx].Filter = item.Protocol
 		case "uptime":
-			p.entries[idx].Filter = fmt.Sprintf("%d", item.TsChecked)
+			p.Entries[idx].Filter = fmt.Sprintf("%d", item.TsChecked)
 		}
 	}
 
-	sort.Sort(byFilter(p.entries))
+	sort.Sort(ByFilter(p.Entries))
 }
